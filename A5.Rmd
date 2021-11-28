@@ -1,0 +1,226 @@
+---
+title: "A5.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(ISLR)
+d = na.omit(Hitters)
+d$logSalary = log(d$Salary)
+d = d[,-19] #remove Salary
+
+set.seed(23)
+train = sample(1:nrow(d),0.7*nrow(d))
+test = -train
+```
+
+```{r}
+library(tree)
+set.seed(3454)
+tree.bb = tree(logSalary~., data=d, subset=train)
+summary(tree.bb)
+
+mean((d$logSalary[train]-predict(tree.bb))^2)
+#training error is 0.1677
+
+mean((d$logSalary[test]-predict(tree.bb,d[test,]))^2)
+#RMS test error is 0.3029
+pdf("q1a.pdf",paper="special",width=15,height=8)
+cv.Tree = cv.tree(tree.bb,)
+plot(cv.Tree$size, cv.Tree$dev, "b", pch=19)
+#Size 4 has lowest dev. 
+
+prune.Tree = prune.tree(tree.bb, best=4)
+mean((d$logSalary[test]-predict(prune.Tree,d[test,]))^2)
+#RMS test error is 0.3318 which is worse. 
+
+plot(prune.Tree)
+text(prune.Tree)
+#Interesting tree.
+```
+
+```{r}
+dim(d)
+set.seed(150)
+library(randomForest)
+bag.tree = randomForest(logSalary~., data=d, subset=train, mtry=19, importance=TRUE)
+bag.tree
+pdf("q1b.pdf",paper="special",width=15,height=8)
+plot(bag.tree)
+#OOB error levels off after B=150
+
+varImpPlot(bag.tree)
+#CAtBat is the most important predictor. 
+
+mean((d$logSalary[test]-predict(bag.tree,d[test,]))^2)
+#RMS test error is 0.1382
+```
+
+```{r}
+#randomForest
+set.seed(18540)
+library(randomForest)
+rf.tree = randomForest(logSalary~., data=d, subset=train, mtry=3, importance=TRUE)
+rf.tree
+pdf("q1c.pdf",paper="special",width=15,height=8)
+plot(rf.tree)
+#OOB error levels off after B=100
+#mtry = 6 by default here. 
+#at mtry = 15 test error goes up to 0.1384 CAtBat is more distanced in importance to CHits. 
+#at mtry = 3 test error is 0.1282 and the importances are closer together. 
+
+varImpPlot(rf.tree)
+#CAtBat and CHits are closer in importance but still CAtBat is most.
+
+mean((d$logSalary[test]-predict(rf.tree,d[test,]))^2)
+#RMS test error is 0.1264 
+```
+
+```{r}
+#gbm for boosted tree model. 
+library(gbm)
+set.seed(34)
+boost.tree = gbm(logSalary~., data=d[train,], distribution="gaussian",n.trees=150, cv.folds=10, n.cores=1)
+#n.trees at 150 had the optimal value not too far on the right-hand side.  
+#It ended up using 133 trees. 
+pdf("q1d.pdf",paper="special",width=15,height=8)
+gbm.perf(boost.tree,method="cv")
+
+summary(boost.tree)
+#CAtBat is, once again, the most influential predictor. 
+
+plot(boost.tree, 8)
+#Shows the effect of CAtBat on logSalary. Shows steep initial increase with a plateau at around 1500. 
+
+mean((d$logSalary[test]-predict(boost.tree,d[test,]))^2)
+#RMS test error is 0.2224
+```
+
+```{r}
+pdf("q1e1.pdf",paper="special",width=15,height=8)
+plot(d[,c(1,2,4,8,9,11)],pch=46,col="blue")
+#It can be seen from the pairwise plots of the predictors that CAtBat, CHits, and CRuns are highly correlated and so are AtBat, Hits, and Runs. AtBat, Runs, CAtBat, and CRuns will be removed. 
+#These are numbers 1, 4, 8, and 11. 
+dnew = d[,-c(1,4,8,11)]
+#parts a-d will be repeated with the new data frame.
+```
+
+```{r}
+set.seed(23)
+trainnew = sample(1:nrow(dnew),0.7*nrow(dnew))
+testnew = -trainnew
+
+#a
+library(tree)
+set.seed(3454)
+tree.bb.new = tree(logSalary~., data=dnew, subset=trainnew)
+summary(tree.bb.new)
+
+mean((dnew$logSalary[trainnew]-predict(tree.bb.new))^2)
+#training error is 0.1785
+
+mean((dnew$logSalary[testnew]-predict(tree.bb.new,d[testnew,]))^2)
+#RMS test error is 0.3138
+```
+
+```{r}
+#b
+dim(dnew)
+set.seed(150)
+library(randomForest)
+bag.tree.new = randomForest(logSalary~., data=dnew, subset=trainnew, mtry=15, importance=TRUE)
+bag.tree.new
+pdf("q1eb.pdf",paper="special",width=15,height=8)
+plot(bag.tree.new)
+#OOB error levels off after B=100 ish
+
+varImpPlot(bag.tree.new)
+#CHits is the most important predictor. 
+
+mean((dnew$logSalary[testnew]-predict(bag.tree.new,dnew[testnew,]))^2)
+#RMS test error is 0.1540
+```
+
+```{r}
+#c
+#randomForest
+set.seed(18540)
+library(randomForest)
+rf.tree.new = randomForest(logSalary~., data=dnew, subset=trainnew, mtry=1, importance=TRUE)
+rf.tree.new
+pdf("q1ec.pdf",paper="special",width=15,height=8)
+plot(rf.tree.new)
+#OOB error levels off after B=50 ish
+#mtry = 3 by default here. 
+#at mtry = 15 test error goes up to 0.1531 CHits is more distanced in importance to the rest. 
+#at mtry = 1 test error is 0.2082 and the importances are closer together. 
+
+varImpPlot(rf.tree.new)
+#CHits and CRBI are closer in importance but still CAtBat is most.
+
+mean((dnew$logSalary[testnew]-predict(rf.tree.new,dnew[testnew,]))^2)
+#RMS test error is 0.1428 
+```
+
+```{r}
+#d
+library(gbm)
+set.seed(34)
+boost.tree.new = gbm(logSalary~., data=dnew[trainnew,], distribution="gaussian",n.trees=150, cv.folds=10, n.cores=1)
+#n.trees at 150 had the optimal value not too far on the right-hand side.  
+#It ended up using 125 trees.
+pdf("q1ed.pdf",paper="special",width=15,height=8)
+gbm.perf(boost.tree.new,method="cv")
+
+summary(boost.tree.new)
+#CHits is, once again, the most influential predictor. 
+
+plot(boost.tree.new, 6)
+#Shows the effect of Chits on logSalary. Shows steep initial increase with a plateau at around 1500. 
+
+mean((dnew$logSalary[testnew]-predict(boost.tree.new,dnew[testnew,]))^2)
+#RMS test error is 0.2336
+
+
+
+# Collinearity does not seem to be a problem for tree-based methods. 
+```
+
+```{r}
+#f
+library(rpart)
+set.seed(3454)
+r.tree = rpart(logSalary~., data=d, subset=train)
+summary(r.tree)
+
+mean((d$logSalary[train]-predict(r.tree))^2)
+#training error is 0.1854
+
+mean((d$logSalary[test]-predict(r.tree,d[test,]))^2)
+#RMS test error is 0.2808
+pdf("q1f.pdf",paper="special",width=15,height=8)
+
+
+r.prune = prune.rpart(r.tree, cp=0.03)
+mean((d$logSalary[test]-predict(r.prune,d[test,]))^2)
+#RMS test error is 0.2721 with cp=0.03 which is slightly better.
+
+plot(r.prune)
+text(r.prune)
+
+```
+
+```{r}
+
+```
+
